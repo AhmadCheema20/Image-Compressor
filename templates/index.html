@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Image Compressor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: 'class' };
+  </script>
+  <style>
+    .rotate-animation {
+      animation: spin 0.5s linear;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(180deg); }
+    }
+  </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300 min-h-screen flex items-center justify-center">
+  <div class="absolute top-4 right-4">
+    <button id="toggleMode" class="flex items-center gap-2 bg-gray-200 dark:bg-gray-800 text-black dark:text-yellow-300 px-4 py-2 rounded shadow hover:opacity-90">
+      <svg id="themeIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m8.66-12.66l-.707.707M4.05 19.95l-.707-.707M21 12h-1M4 12H3m16.95 7.95l-.707-.707M4.05 4.05l-.707.707M12 5a7 7 0 100 14 7 7 0 000-14z" />
+      </svg>
+      <span id="themeLabel">Light Mode</span>
+    </button>
+  </div>
+
+  <div class="bg-white dark:bg-gray-800 shadow-xl rounded-xl p-8 w-full max-w-5xl">
+    <h1 class="text-2xl font-bold mb-6 text-center">Image Compressor</h1>
+
+    <form id="uploadForm" enctype="multipart/form-data" class="flex flex-col items-center gap-4">
+      <div id="dropZone" class="w-full border-2 border-dashed border-blue-400 dark:border-yellow-500 p-6 rounded text-center bg-blue-50 dark:bg-gray-700 cursor-pointer">
+        <p class="text-sm text-blue-700 dark:text-yellow-300">Drag & drop images here or click to select files</p>
+        <input type="file" id="imageFile" name="image" accept="image/*" multiple class="hidden" />
+      </div>
+
+      <div class="w-full flex flex-col md:flex-row items-center justify-between gap-4">
+        <div class="flex-1">
+          <label for="quality" class="block text-sm font-medium mb-1">Compression Quality: <span id="qualityValue" class="font-semibold text-blue-700 dark:text-yellow-300">60</span>%</label>
+          <input type="range" id="quality" name="quality" min="10" max="100" value="60" class="w-full h-2 bg-blue-200 dark:bg-yellow-300 rounded-lg appearance-none cursor-pointer" />
+        </div>
+        <div class="flex-1">
+          <label for="format" class="block text-sm font-medium mb-1">Output Format:</label>
+          <select id="format" name="format" class="w-full p-2 rounded border dark:bg-gray-700">
+            <option value="jpeg">JPEG</option>
+            <option value="png">PNG</option>
+            <option value="webp">WebP</option>
+          </select>
+        </div>
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 dark:bg-yellow-500 dark:hover:bg-yellow-600 text-white dark:text-black font-bold py-2 px-6 rounded transition">Compress</button>
+      </div>
+    </form>
+
+    <div id="loading" class="mt-4 text-center hidden text-blue-600 dark:text-yellow-400 font-semibold">Processing images, please wait...</div>
+
+    <div id="previewContainer" class="mt-8 hidden">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-semibold">Preview & Compression Details</h2>
+        <button id="downloadAllBtn" class="bg-green-600 hover:bg-green-700 text-white py-1 px-4 rounded text-sm hidden">Download All</button>
+      </div>
+      <div id="previewGrid" class="space-y-6"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script>
+    const toggleMode = document.getElementById('toggleMode');
+    const themeIcon = document.getElementById('themeIcon');
+    const themeLabel = document.getElementById('themeLabel');
+    const form = document.getElementById('uploadForm');
+    const imageInput = document.getElementById('imageFile');
+    const dropZone = document.getElementById('dropZone');
+    const loading = document.getElementById('loading');
+    const previewContainer = document.getElementById('previewContainer');
+    const previewGrid = document.getElementById('previewGrid');
+    const qualityInput = document.getElementById('quality');
+    const qualityValue = document.getElementById('qualityValue');
+    const formatSelect = document.getElementById('format');
+    const downloadAllBtn = document.getElementById('downloadAllBtn');
+    let compressedBlobs = [];
+
+    if (localStorage.getItem('theme') === 'dark') {
+      document.documentElement.classList.add('dark');
+      themeLabel.textContent = 'Dark Mode';
+      switchToMoon();
+    }
+
+    toggleMode.addEventListener('click', () => {
+      themeIcon.classList.add('rotate-animation');
+      setTimeout(() => themeIcon.classList.remove('rotate-animation'), 500);
+      document.documentElement.classList.toggle('dark');
+      const isDark = document.documentElement.classList.contains('dark');
+      localStorage.setItem('theme', isDark ? 'dark' : 'light');
+      themeLabel.textContent = isDark ? 'Dark Mode' : 'Light Mode';
+      isDark ? switchToMoon() : switchToSun();
+    });
+
+    function switchToMoon() {
+      themeIcon.innerHTML = '<path fill-rule="evenodd" d="M17.293 14.707a8 8 0 01-11-11 8 8 0 1011 11z" clip-rule="evenodd" />';
+    }
+
+    function switchToSun() {
+      themeIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m8.66-12.66l-.707.707M4.05 19.95l-.707-.707M21 12h-1M4 12H3m16.95 7.95l-.707-.707M4.05 4.05l-.707.707M12 5a7 7 0 100 14 7 7 0 000-14z" />';
+    }
+
+    qualityInput.addEventListener('input', () => {
+      qualityValue.textContent = qualityInput.value;
+    });
+
+    dropZone.addEventListener('click', () => imageInput.click());
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('bg-blue-100');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('bg-blue-100'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      imageInput.files = e.dataTransfer.files;
+      dropZone.classList.remove('bg-blue-100');
+      previewImagesBeforeCompression(Array.from(imageInput.files));
+    });
+
+    imageInput.addEventListener('change', () => {
+      previewImagesBeforeCompression(Array.from(imageInput.files));
+    });
+
+    function previewImagesBeforeCompression(files) {
+      previewGrid.innerHTML = '';
+      compressedBlobs = [];
+      files.forEach(file => {
+        const originalUrl = URL.createObjectURL(file);
+        const originalSize = (file.size / 1024).toFixed(2);
+        const row = document.createElement('div');
+        row.className = 'grid md:grid-cols-2 gap-4 bg-gray-50 dark:bg-gray-700 p-4 rounded-lg shadow transition-transform hover:scale-[1.01]';
+        row.innerHTML = `
+          <div class="text-center">
+            <p class="text-sm font-semibold mb-1">Original</p>
+            <img src="${originalUrl}" class="mx-auto max-h-40 border rounded mb-1 transform hover:scale-105 transition-transform duration-200 ease-in-out shadow-sm" />
+            <p class="text-xs">${originalSize} KB</p>
+          </div>
+          <div id="compressed-${file.name}" class="text-center italic flex items-center justify-center text-gray-400 dark:text-gray-300">Waiting for compression...</div>
+        `;
+        previewGrid.appendChild(row);
+      });
+      previewContainer.classList.remove('hidden');
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      downloadAllBtn.classList.add('hidden');
+
+      const files = Array.from(imageInput.files);
+      const quality = qualityInput.value;
+      const format = formatSelect.value;
+      if (!files.length) return;
+
+      loading.classList.remove('hidden');
+      compressedBlobs = [];
+
+      for (let file of files) {
+        const formData = new FormData();
+        formData.append('image', file);
+        formData.append('quality', quality);
+        formData.append('format', format);
+
+        try {
+          const response = await fetch('/compress', { method: 'POST', body: formData });
+          if (!response.ok) throw new Error('Compression failed');
+          const blob = await response.blob();
+          compressedBlobs.push({ blob, name: file.name.replace(/\.[^.]+$/, '') + '_compressed.' + format });
+
+          const compressedUrl = URL.createObjectURL(blob);
+          const compressedSize = (blob.size / 1024).toFixed(2);
+          const ratio = ((blob.size / file.size) * 100).toFixed(2);
+
+          const container = document.getElementById(`compressed-${file.name}`);
+          container.className = 'text-center';
+          container.innerHTML = `
+            <p class="text-sm font-semibold mb-1">Compressed</p>
+            <img src="${compressedUrl}" class="mx-auto max-h-40 border rounded mb-1" />
+            <p class="text-xs">${compressedSize} KB</p>
+            <p class="text-xs text-blue-600 dark:text-yellow-300 font-medium">Ratio: <span class="font-bold ${ratio < 60 ? 'text-green-500' : ratio < 85 ? 'text-yellow-500' : 'text-red-500'}">${ratio}%</span></p>
+            <a href="${compressedUrl}" download="${file.name.replace(/\.[^.]+$/, '') + '_compressed.' + format}" class="inline-block mt-2 bg-green-600 hover:bg-green-700 text-white text-xs py-1 px-3 rounded">Download</a>
+          `;
+        } catch (error) {
+          console.error('Compression error:', error);
+          const container = document.getElementById(`compressed-${file.name}`);
+          container.textContent = 'Compression failed';
+        }
+      }
+
+      loading.classList.add('hidden');
+      if (compressedBlobs.length > 1) downloadAllBtn.classList.remove('hidden');
+    });
+
+    downloadAllBtn.addEventListener('click', () => {
+      if (!compressedBlobs.length) return;
+      const zip = new JSZip();
+      compressedBlobs.forEach(({ blob, name }) => zip.file(name, blob));
+      zip.generateAsync({ type: 'blob' }).then(content => {
+        const url = URL.createObjectURL(content);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'compressed_images.zip';
+        a.click();
+      });
+    });
+  </script>
+</body>
+</html>
